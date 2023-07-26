@@ -35,6 +35,7 @@
 /* Author: David V. Lu!! */
 
 #include <gazebo_collision_plugin/gazebo_collision_plugin.hpp>
+#include <gazebo_ros/conversions/builtin_interfaces.hpp>
 
 namespace gazebo_collision_plugin
 {
@@ -44,9 +45,22 @@ GazeboCollisionPlugin::GazeboCollisionPlugin()
 
 GazeboCollisionPlugin::~GazeboCollisionPlugin()
 {
+    if (gazebo_node_) {
+    gazebo_node_->Fini();
+  }
+  gazebo_node_.reset();
 }
 
 void GazeboCollisionPlugin::Load(gazebo::physics::WorldPtr _world, sdf::ElementPtr _sdf)
+{
+  ros_node_ = gazebo_ros::Node::Get(_sdf);
+  gazebo_node_ = boost::make_shared<gazebo::transport::Node>();
+  gazebo_node_->Init();
+  collision_sub_ = gazebo_node_->Subscribe(
+      "/gazebo/default/physics/contacts", &GazeboCollisionPlugin::collisionCB, this);
+}
+
+void GazeboCollisionPlugin::collisionCB(ConstContactsPtr & _msg)
 {
 }
 

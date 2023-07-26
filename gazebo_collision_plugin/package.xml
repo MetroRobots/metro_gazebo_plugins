@@ -8,6 +8,8 @@
   <license>BSD 3-clause</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>builtin_interfaces</depend>
+  <depend>gazebo_ros</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

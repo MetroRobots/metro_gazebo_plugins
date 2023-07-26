@@ -37,6 +37,9 @@
 #pragma once
 
 #include <gazebo/common/Plugin.hh>
+#include <gazebo/transport/transport.hh>
+#include <gazebo_msgs/msg/contacts_state.hpp>
+#include <gazebo_ros/node.hpp>
 
 namespace gazebo_collision_plugin
 {
@@ -47,5 +50,12 @@ public:
     virtual ~GazeboCollisionPlugin();
 
     void Load(gazebo::physics::WorldPtr _world, sdf::ElementPtr _sdf);
+
+    void collisionCB(ConstContactsPtr & _msg);
+protected:
+  gazebo_ros::Node::SharedPtr ros_node_;
+  gazebo::transport::NodePtr gazebo_node_;
+  gazebo::transport::SubscriberPtr collision_sub_;
+
 };
 }  // namespace gazebo_collision_plugin
