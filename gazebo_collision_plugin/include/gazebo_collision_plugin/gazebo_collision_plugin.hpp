@@ -55,6 +55,8 @@ public:
   void collisionCB(ConstContactsPtr& _msg);
 
 protected:
+  std::string toEntity(const std::string& full_name);
+
   gazebo_ros::Node::SharedPtr ros_node_;
   gazebo::transport::NodePtr gazebo_node_;
   gazebo::transport::SubscriberPtr collision_sub_;

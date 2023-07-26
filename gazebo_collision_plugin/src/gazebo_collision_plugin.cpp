@@ -65,20 +65,62 @@ void GazeboCollisionPlugin::Load(gazebo::physics::WorldPtr _world, sdf::ElementP
       gazebo_node_->Subscribe("/gazebo/default/physics/contacts", &GazeboCollisionPlugin::collisionCB, this);
 }
 
+std::string GazeboCollisionPlugin::toEntity(const std::string& full_name)
+{
+  int index = full_name.find(':');
+  if (index >= 0)
+  {
+    return full_name.substr(0, index);
+  }
+  return full_name;
+}
+
+struct pair_hash
+{
+  std::size_t operator()(const std::pair<std::string, std::string>& p) const
+  {
+    return std::hash<std::string>{}(p.first + " " + p.second);
+  }
+};
+
 void GazeboCollisionPlugin::collisionCB(ConstContactsPtr& _msg)
 {
+  std::unordered_set<std::pair<std::string, std::string>, pair_hash> pairs;
+  for (int i = 0; i < _msg->contact_size(); ++i)
+  {
+    const gazebo::msgs::Contact& contact = _msg->contact(i);
+
+    std::string e0 = toEntity(contact.collision1());
+    std::string e1 = toEntity(contact.collision2());
+
+    if (e0 == e1)
+    {
+      continue;
+    }
+    else if (e0 < e1)
+    {
+      pairs.insert(std::make_pair(e0, e1));
+    }
+    else
+    {
+      pairs.insert(std::make_pair(e1, e0));
+    }
+  }
+
+  if (pairs.empty())
+  {
+    return;
+  }
+
   collision_msgs::msg::Collisions collisions;
   collisions.header.frame_id = "world";
   collisions.header.stamp = gazebo_ros::Convert<builtin_interfaces::msg::Time>(_msg->time());
 
-  int contacts_packet_size = _msg->contact_size();
-  for (int i = 0; i < contacts_packet_size; ++i)
+  for (const auto& pair : pairs)
   {
-    const gazebo::msgs::Contact& contact = _msg->contact(i);
-
     collision_msgs::msg::Collision collision;
-    collision.entity0 = contact.collision1();
-    collision.entity1 = contact.collision2();
+    collision.entity0 = pair.first;
+    collision.entity1 = pair.second;
     collisions.collisions.push_back(collision);
   }
 
