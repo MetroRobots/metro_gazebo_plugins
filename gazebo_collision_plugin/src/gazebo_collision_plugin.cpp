@@ -46,7 +46,8 @@ GazeboCollisionPlugin::GazeboCollisionPlugin()
 
 GazeboCollisionPlugin::~GazeboCollisionPlugin()
 {
-    if (gazebo_node_) {
+  if (gazebo_node_)
+  {
     gazebo_node_->Fini();
   }
   gazebo_node_.reset();
@@ -55,32 +56,30 @@ GazeboCollisionPlugin::~GazeboCollisionPlugin()
 void GazeboCollisionPlugin::Load(gazebo::physics::WorldPtr _world, sdf::ElementPtr _sdf)
 {
   ros_node_ = gazebo_ros::Node::Get(_sdf);
-  pub_ = ros_node_->create_publisher<collision_msgs::msg::Collisions>(
-    "collisions", 1);
-    RCLCPP_INFO(
-        ros_node_->get_logger(), "Publishing collisions to [%s]",
-        pub_->get_topic_name());
+  pub_ = ros_node_->create_publisher<collision_msgs::msg::Collisions>("collisions", 1);
+  RCLCPP_INFO(ros_node_->get_logger(), "Publishing collisions to [%s]", pub_->get_topic_name());
 
   gazebo_node_ = boost::make_shared<gazebo::transport::Node>();
   gazebo_node_->Init();
-  collision_sub_ = gazebo_node_->Subscribe(
-      "/gazebo/default/physics/contacts", &GazeboCollisionPlugin::collisionCB, this);
+  collision_sub_ =
+      gazebo_node_->Subscribe("/gazebo/default/physics/contacts", &GazeboCollisionPlugin::collisionCB, this);
 }
 
-void GazeboCollisionPlugin::collisionCB(ConstContactsPtr & _msg)
+void GazeboCollisionPlugin::collisionCB(ConstContactsPtr& _msg)
 {
   collision_msgs::msg::Collisions collisions;
   collisions.header.frame_id = "world";
   collisions.header.stamp = gazebo_ros::Convert<builtin_interfaces::msg::Time>(_msg->time());
 
   int contacts_packet_size = _msg->contact_size();
-  for (int i = 0; i < contacts_packet_size; ++i) {
-      const gazebo::msgs::Contact & contact = _msg->contact(i);
+  for (int i = 0; i < contacts_packet_size; ++i)
+  {
+    const gazebo::msgs::Contact& contact = _msg->contact(i);
 
-      collision_msgs::msg::Collision collision;
-      collision.entity0 = contact.collision1();
-      collision.entity1 = contact.collision2();
-      collisions.collisions.push_back(collision);
+    collision_msgs::msg::Collision collision;
+    collision.entity0 = contact.collision1();
+    collision.entity1 = contact.collision2();
+    collisions.collisions.push_back(collision);
   }
 
   pub_->publish(collisions);

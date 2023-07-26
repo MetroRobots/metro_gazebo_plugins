@@ -44,20 +44,20 @@
 
 namespace gazebo_collision_plugin
 {
-class GazeboCollisionPlugin: public gazebo::WorldPlugin
+class GazeboCollisionPlugin : public gazebo::WorldPlugin
 {
 public:
-    GazeboCollisionPlugin();
-    virtual ~GazeboCollisionPlugin();
+  GazeboCollisionPlugin();
+  virtual ~GazeboCollisionPlugin();
 
-    void Load(gazebo::physics::WorldPtr _world, sdf::ElementPtr _sdf);
+  void Load(gazebo::physics::WorldPtr _world, sdf::ElementPtr _sdf);
 
-    void collisionCB(ConstContactsPtr & _msg);
+  void collisionCB(ConstContactsPtr& _msg);
+
 protected:
   gazebo_ros::Node::SharedPtr ros_node_;
   gazebo::transport::NodePtr gazebo_node_;
   gazebo::transport::SubscriberPtr collision_sub_;
   rclcpp::Publisher<collision_msgs::msg::Collisions>::SharedPtr pub_;
-
 };
 }  // namespace gazebo_collision_plugin

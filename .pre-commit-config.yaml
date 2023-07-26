@@ -12,6 +12,7 @@ repos:
   - id: check-symlinks
   - id: check-case-conflict
   - id: check-yaml
+  - id: check-xml
   rev: v4.4.0
 - repo: https://github.com/codespell-project/codespell
   hooks:
@@ -42,5 +43,9 @@ repos:
     - --offset
     - '0'
   rev: 0.2.3
+- repo: https://github.com/pre-commit/mirrors-clang-format
+  hooks:
+  - id: clang-format
+  rev: v16.0.6
 ci:
   autoupdate_schedule: quarterly
