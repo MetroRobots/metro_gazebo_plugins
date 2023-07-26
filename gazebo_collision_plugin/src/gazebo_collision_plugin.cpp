@@ -57,6 +57,9 @@ void GazeboCollisionPlugin::Load(gazebo::physics::WorldPtr _world, sdf::ElementP
   ros_node_ = gazebo_ros::Node::Get(_sdf);
   pub_ = ros_node_->create_publisher<collision_msgs::msg::Collisions>(
     "collisions", 1);
+    RCLCPP_INFO(
+        ros_node_->get_logger(), "Publishing collisions to [%s]",
+        pub_->get_topic_name());
 
   gazebo_node_ = boost::make_shared<gazebo::transport::Node>();
   gazebo_node_->Init();

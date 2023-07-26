@@ -21,7 +21,9 @@ find_package(collision_msgs REQUIRED)
 find_package(gazebo_dev REQUIRED)
 find_package(gazebo_ros REQUIRED)
 
-add_library(gazebo_collision_plugin src/gazebo_collision_plugin.cpp)
+link_directories(${gazebo_dev_LIBRARY_DIRS})
+
+add_library(gazebo_collision_plugin SHARED src/gazebo_collision_plugin.cpp)
 target_include_directories(gazebo_collision_plugin PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
@@ -33,7 +35,10 @@ ament_target_dependencies(gazebo_collision_plugin
   collision_msgs
 )
 
+ament_export_libraries(gazebo_collision_plugin)
+ament_export_targets(export_gazebo_collision_plugin)
 install(TARGETS gazebo_collision_plugin
+        EXPORT export_gazebo_collision_plugin
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib
         RUNTIME DESTINATION bin
