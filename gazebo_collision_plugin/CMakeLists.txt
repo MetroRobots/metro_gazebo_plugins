@@ -17,6 +17,7 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(builtin_interfaces REQUIRED)
+find_package(collision_msgs REQUIRED)
 find_package(gazebo_dev REQUIRED)
 find_package(gazebo_ros REQUIRED)
 
@@ -29,6 +30,7 @@ ament_target_dependencies(gazebo_collision_plugin
   gazebo_dev
   builtin_interfaces
   gazebo_ros
+  collision_msgs
 )
 
 install(TARGETS gazebo_collision_plugin
