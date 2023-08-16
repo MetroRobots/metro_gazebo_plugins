@@ -70,6 +70,9 @@ protected:
   /// Velocity received on command.
   geometry_msgs::msg::Twist target_cmd_vel_;
 
+  /// Keep latest odometry message
+  nav_msgs::msg::Odometry odom_;
+
   /// Pointer to world.
   gazebo::physics::WorldPtr world_;
 
