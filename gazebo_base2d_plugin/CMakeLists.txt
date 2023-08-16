@@ -19,6 +19,7 @@ find_package(ament_cmake REQUIRED)
 find_package(gazebo_dev REQUIRED)
 find_package(gazebo_ros REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(kinematics_2d REQUIRED)
 find_package(nav_2d_utils REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -37,6 +38,7 @@ ament_target_dependencies(gazebo_base2d_plugin
   nav_msgs
   nav_2d_utils
   tf2_ros
+  kinematics_2d
 )
 
 ament_export_libraries(gazebo_base2d_plugin)

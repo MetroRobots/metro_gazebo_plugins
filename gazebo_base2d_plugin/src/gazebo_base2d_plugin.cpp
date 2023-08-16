@@ -1,36 +1,17 @@
-/*********************************************************************
- * Software License Agreement (BSD License)
- *
- *  Copyright (c) 2023, Metro Robots
- *  All rights reserved.
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions
- *  are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above
- *     copyright notice, this list of conditions and the following
- *     disclaimer in the documentation and/or other materials provided
- *     with the distribution.
- *   * Neither the name of Metro Robots nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *  POSSIBILITY OF SUCH DAMAGE.
- *********************************************************************/
+// Copyright 2019 Open Source Robotics Foundation, Inc.
+//           2023 Metro Robots
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 /* Author: David V. Lu!! */
 
@@ -54,6 +35,7 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
   auto update_rate = sdf->Get<double>("update_rate", 20.0).first;
   auto publish_rate = sdf->Get<double>("publish_rate", 20.0).first;
   publish_odom_ = sdf->Get<bool>("publish_odom", true).first;
+  publish_true_odom_ = sdf->Get<bool>("publish_true_odom", true).first;
   publish_odom_tf_ = sdf->Get<bool>("publish_odom_tf", true).first;
 
   // Update rate
@@ -82,6 +64,9 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
   ros_node_ = gazebo_ros::Node::Get(sdf);
   const gazebo_ros::QoS& qos = ros_node_->get_qos();
 
+  kinematics_.initialize(ros_node_);
+  kinematics_.startSubscriber(ros_node_);
+
   // Advertise odometry topic
   if (publish_odom_)
   {
@@ -89,6 +74,13 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
         ros_node_->create_publisher<nav_msgs::msg::Odometry>("odom", qos.get_publisher_qos("odom", rclcpp::QoS(1)));
 
     RCLCPP_INFO(ros_node_->get_logger(), "Advertise odometry on [%s]", odometry_pub_->get_topic_name());
+  }
+  if (publish_true_odom_)
+  {
+    true_odometry_pub_ = ros_node_->create_publisher<nav_msgs::msg::Odometry>(
+        "true_odom", qos.get_publisher_qos("true_odom", rclcpp::QoS(1)));
+
+    RCLCPP_INFO(ros_node_->get_logger(), "Advertise true odometry on [%s]", true_odometry_pub_->get_topic_name());
   }
 
   // Broadcast TF
@@ -106,7 +98,29 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
 
   RCLCPP_INFO(ros_node_->get_logger(), "Subscribed to [%s]", cmd_vel_sub_->get_topic_name());
 
-  // Set header
+  auto covariance_x = sdf->Get<double>("covariance_x", 0.00001).first;
+  auto covariance_y = sdf->Get<double>("covariance_y", 0.00001).first;
+  auto covariance_yaw = sdf->Get<double>("covariance_yaw", 0.001).first;
+
+  cmd_noise_model_ =
+      std::make_unique<kinematics_2d::NoiseModel>(0.0, covariance_x, 0.0, covariance_y, 0.0, covariance_yaw);
+  true_odom_.pose.covariance = cmd_noise_model_->getCovarianceMatrix();
+  true_odom_.twist.covariance = true_odom_.pose.covariance;
+  true_odom_.header.frame_id = odometry_frame_;
+  true_odom_.child_frame_id = robot_base_frame_;
+
+  std::vector<double> odom_params;
+  for (const std::string& dimension : {"x", "y", "theta"})
+  {
+    for (const std::string& type : {"mean", "covariance"})
+    {
+      std::string name = "odom_" + type + "_" + dimension;
+      odom_params.push_back(sdf->Get<double>(name, 0.0).first);
+    }
+  }
+  odom_noise_model_ = std::make_unique<kinematics_2d::NoiseModel>(odom_params);
+  odom_.pose.covariance = odom_noise_model_->getCovarianceMatrix();
+  odom_.twist.covariance = odom_.pose.covariance;
   odom_.header.frame_id = odometry_frame_;
   odom_.child_frame_id = robot_base_frame_;
 
@@ -140,7 +154,11 @@ void GazeboBase2DPlugin::OnUpdate(const gazebo::common::UpdateInfo& _info)
   current_vel.theta = model_->WorldAngularVel().Z();
 
   // Calculate reachable cmd_vel
-  nav_2d_msgs::msg::Twist2D target_vel = nav_2d_utils::twist3Dto2D(target_cmd_vel_), actual_cmd_vel = target_vel;
+  nav_2d_msgs::msg::Twist2D target_vel = nav_2d_utils::twist3Dto2D(target_cmd_vel_);
+  nav_2d_msgs::msg::Twist2D cmd_vel =
+      kinematics_.calculateNewVelocity(target_vel, current_vel, seconds_since_last_update);
+  nav_2d_msgs::msg::Twist2D actual_cmd_vel = cmd_noise_model_->applyNoise(cmd_vel);
+  nav_2d_msgs::msg::Twist2D odom_cmd_vel = odom_noise_model_->applyNoise(cmd_vel);
 
   if (seconds_since_last_update >= update_period_)
   {
@@ -152,7 +170,7 @@ void GazeboBase2DPlugin::OnUpdate(const gazebo::common::UpdateInfo& _info)
     last_update_time_ = _info.simTime;
   }
 
-  if (publish_odom_ || publish_odom_tf_)
+  if (publish_odom_ || publish_odom_tf_ || publish_true_odom_)
   {
     double seconds_since_last_publish = (_info.simTime - last_publish_time_).Double();
 
@@ -161,9 +179,10 @@ void GazeboBase2DPlugin::OnUpdate(const gazebo::common::UpdateInfo& _info)
       return;
     }
 
-    auto pose = model_->WorldPose();
-    odom_.pose.pose = gazebo_ros::Convert<geometry_msgs::msg::Pose>(pose);
-    odom_.twist.twist = nav_2d_utils::twist2Dto3D(current_vel);
+    current_pose_ = kinematics_.calculateNewPosition(current_pose_, odom_cmd_vel, seconds_since_last_update);
+
+    odom_.pose.pose = nav_2d_utils::pose2DToPose(current_pose_);
+    odom_.twist.twist = nav_2d_utils::twist2Dto3D(odom_noise_model_->applyNoise(cmd_vel));
 
     // Set timestamp
     odom_.header.stamp = gazebo_ros::Convert<builtin_interfaces::msg::Time>(_info.simTime);
@@ -180,6 +199,13 @@ void GazeboBase2DPlugin::OnUpdate(const gazebo::common::UpdateInfo& _info)
       msg.transform = gazebo_ros::Convert<geometry_msgs::msg::Transform>(odom_.pose.pose);
 
       transform_broadcaster_->sendTransform(msg);
+    }
+    if (publish_true_odom_)
+    {
+      true_odom_.pose.pose = gazebo_ros::Convert<geometry_msgs::msg::Pose>(pose);
+      true_odom_.twist.twist = nav_2d_utils::twist2Dto3D(actual_cmd_vel);
+      true_odom_.header.stamp = odom_.header.stamp;
+      true_odometry_pub_->publish(true_odom_);
     }
 
     last_publish_time_ = _info.simTime;
