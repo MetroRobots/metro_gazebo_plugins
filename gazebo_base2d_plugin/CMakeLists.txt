@@ -39,6 +39,7 @@ ament_target_dependencies(gazebo_base2d_plugin
   nav_2d_utils
   tf2_ros
   kinematics_2d
+  rclcpp
 )
 
 ament_export_libraries(gazebo_base2d_plugin)

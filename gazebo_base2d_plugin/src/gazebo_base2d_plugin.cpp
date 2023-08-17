@@ -149,9 +149,17 @@ void GazeboBase2DPlugin::OnUpdate(const gazebo::common::UpdateInfo& _info)
 
   // Get Current velocity in proper frame
   nav_2d_msgs::msg::Twist2D current_vel;
-  current_vel.x = cosf(yaw) * linear.X() + sinf(yaw) * linear.Y();
-  current_vel.y = cosf(yaw) * linear.Y() - sinf(yaw) * linear.X();
-  current_vel.theta = model_->WorldAngularVel().Z();
+  if (use_actual_velocity_)
+  {
+    // This method does not work currently.
+    current_vel.x = cosf(yaw) * linear.X() + sinf(yaw) * linear.Y();
+    current_vel.y = cosf(yaw) * linear.Y() - sinf(yaw) * linear.X();
+    current_vel.theta = model_->WorldAngularVel().Z();
+  }
+  else
+  {
+    current_vel = last_cmd_;
+  }
 
   // Calculate reachable cmd_vel
   nav_2d_msgs::msg::Twist2D target_vel = nav_2d_utils::twist3Dto2D(target_cmd_vel_);
@@ -166,6 +174,7 @@ void GazeboBase2DPlugin::OnUpdate(const gazebo::common::UpdateInfo& _info)
     model_->SetLinearVel(ignition::math::Vector3d(actual_cmd_vel.x * cosf(yaw) - actual_cmd_vel.y * sinf(yaw),
                                                   actual_cmd_vel.y * cosf(yaw) + actual_cmd_vel.x * sinf(yaw), 0));
     model_->SetAngularVel(ignition::math::Vector3d(0, 0, actual_cmd_vel.theta));
+    last_cmd_ = actual_cmd_vel;
 
     last_update_time_ = _info.simTime;
   }

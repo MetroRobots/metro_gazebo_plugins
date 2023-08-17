@@ -97,5 +97,8 @@ protected:
   kinematics_2d::KinematicParameters kinematics_;
   std::unique_ptr<kinematics_2d::NoiseModel> cmd_noise_model_, odom_noise_model_;
   geometry_msgs::msg::Pose2D current_pose_;
+  nav_2d_msgs::msg::Twist2D last_cmd_;
+
+  bool use_actual_velocity_{false};
 };
 }  // namespace gazebo_base2d_plugin

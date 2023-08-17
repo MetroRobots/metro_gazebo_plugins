@@ -13,10 +13,11 @@
   <depend>kinematics_2d</depend>
   <depend>nav_2d_utils</depend>
   <depend>nav_msgs</depend>
+  <depend>rclcpp</depend>
   <depend>tf2_ros</depend>
 
   <export>
     <build_type>ament_cmake</build_type>
-    <gazebo_ros plugin_path="$(prefix)/../../lib" />
+    <gazebo_ros plugin_path="$(prefix)/../../lib"/>
   </export>
 </package>
