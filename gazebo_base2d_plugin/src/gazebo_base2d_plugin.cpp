@@ -29,7 +29,15 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
   world_ = model->GetWorld();
   model_ = model;
 
+  // ROS Interface
+  ros_node_ = gazebo_ros::Node::Get(sdf);
+  const gazebo_ros::QoS& qos = ros_node_->get_qos();
+
   // parameters from SDF
+  if (sdf->HasElement("ros"))
+  {
+    sdf = sdf->GetElement("ros");
+  }
   odometry_frame_ = sdf->Get<std::string>("odometry_frame", "odom").first;
   robot_base_frame_ = sdf->Get<std::string>("robot_base_frame", "base_footprint").first;
   auto update_rate = sdf->Get<double>("update_rate", 20.0).first;
@@ -59,10 +67,6 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
     publish_period_ = 0.0;
   }
   last_publish_time_ = world_->SimTime();
-
-  // ROS Interface
-  ros_node_ = gazebo_ros::Node::Get(sdf);
-  const gazebo_ros::QoS& qos = ros_node_->get_qos();
 
   kinematics_.initialize(ros_node_);
   kinematics_.startSubscriber(ros_node_);
