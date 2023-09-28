@@ -8,9 +8,9 @@
   <license>Apache 2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>base2d_kinematics</depend>
   <depend>gazebo_ros</depend>
   <depend>geometry_msgs</depend>
-  <depend>kinematics_2d</depend>
   <depend>nav_2d_utils</depend>
   <depend>nav_msgs</depend>
   <depend>rclcpp</depend>

@@ -22,8 +22,8 @@
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <tf2_ros/transform_broadcaster.h>
-#include <kinematics_2d/kinematic_parameters.hpp>
-#include <kinematics_2d/noise_model.hpp>
+#include <base2d_kinematics/kinematic_parameters.hpp>
+#include <base2d_kinematics/noise_model.hpp>
 
 // Based on https://github.com/ros-simulation/gazebo_ros_pkgs/blob/b6f7bf121d0c607825b65a28b227a5459a71821b/gazebo_plugins/include/gazebo_plugins/gazebo_ros_planar_move.hpp
 
@@ -94,8 +94,8 @@ protected:
   /// True to publish odom-to-world transforms.
   bool publish_odom_tf_;
 
-  kinematics_2d::KinematicParameters kinematics_;
-  std::unique_ptr<kinematics_2d::NoiseModel> cmd_noise_model_, odom_noise_model_;
+  base2d_kinematics::KinematicParameters kinematics_;
+  std::unique_ptr<base2d_kinematics::NoiseModel> cmd_noise_model_, odom_noise_model_;
   geometry_msgs::msg::Pose2D current_pose_;
   nav_2d_msgs::msg::Twist2D last_cmd_;
 

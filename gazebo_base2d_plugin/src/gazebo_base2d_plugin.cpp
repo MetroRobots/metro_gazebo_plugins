@@ -107,7 +107,7 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
   auto covariance_yaw = sdf->Get<double>("covariance_yaw", 0.001).first;
 
   cmd_noise_model_ =
-      std::make_unique<kinematics_2d::NoiseModel>(0.0, covariance_x, 0.0, covariance_y, 0.0, covariance_yaw);
+      std::make_unique<base2d_kinematics::NoiseModel>(0.0, covariance_x, 0.0, covariance_y, 0.0, covariance_yaw);
   true_odom_.pose.covariance = cmd_noise_model_->getCovarianceMatrix();
   true_odom_.twist.covariance = true_odom_.pose.covariance;
   true_odom_.header.frame_id = odometry_frame_;
@@ -122,7 +122,7 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
       odom_params.push_back(sdf->Get<double>(name, 0.0).first);
     }
   }
-  odom_noise_model_ = std::make_unique<kinematics_2d::NoiseModel>(odom_params);
+  odom_noise_model_ = std::make_unique<base2d_kinematics::NoiseModel>(odom_params);
   odom_.pose.covariance = odom_noise_model_->getCovarianceMatrix();
   odom_.twist.covariance = odom_.pose.covariance;
   odom_.header.frame_id = odometry_frame_;

@@ -16,10 +16,10 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(base2d_kinematics REQUIRED)
 find_package(gazebo_dev REQUIRED)
 find_package(gazebo_ros REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(kinematics_2d REQUIRED)
 find_package(nav_2d_utils REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -32,13 +32,13 @@ target_include_directories(gazebo_base2d_plugin PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 ament_target_dependencies(gazebo_base2d_plugin
+  base2d_kinematics
   gazebo_dev
   gazebo_ros
   geometry_msgs
   nav_msgs
   nav_2d_utils
   tf2_ros
-  kinematics_2d
   rclcpp
 )
 
