@@ -36,7 +36,7 @@
 
 #pragma once
 
-#include <collision_msgs/msg/named_collisions.hpp>
+#include <collision_log_msgs/msg/named_collisions.hpp>
 #include <gazebo/common/Plugin.hh>
 #include <gazebo/transport/transport.hh>
 #include <gazebo_msgs/msg/contacts_state.hpp>
@@ -60,6 +60,6 @@ protected:
   gazebo_ros::Node::SharedPtr ros_node_;
   gazebo::transport::NodePtr gazebo_node_;
   gazebo::transport::SubscriberPtr collision_sub_;
-  rclcpp::Publisher<collision_msgs::msg::NamedCollisions>::SharedPtr pub_;
+  rclcpp::Publisher<collision_log_msgs::msg::NamedCollisions>::SharedPtr pub_;
 };
 }  // namespace gazebo_collision_plugin

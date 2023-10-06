@@ -56,7 +56,7 @@ GazeboCollisionPlugin::~GazeboCollisionPlugin()
 void GazeboCollisionPlugin::Load(gazebo::physics::WorldPtr _world, sdf::ElementPtr _sdf)
 {
   ros_node_ = gazebo_ros::Node::Get(_sdf);
-  pub_ = ros_node_->create_publisher<collision_msgs::msg::NamedCollisions>("collisions", 1);
+  pub_ = ros_node_->create_publisher<collision_log_msgs::msg::NamedCollisions>("collisions", 1);
   RCLCPP_INFO(ros_node_->get_logger(), "Publishing collisions to [%s]", pub_->get_topic_name());
 
   gazebo_node_ = boost::make_shared<gazebo::transport::Node>();
@@ -112,13 +112,13 @@ void GazeboCollisionPlugin::collisionCB(ConstContactsPtr& _msg)
     return;
   }
 
-  collision_msgs::msg::NamedCollisions collisions;
+  collision_log_msgs::msg::NamedCollisions collisions;
   collisions.header.frame_id = "world";
   collisions.header.stamp = gazebo_ros::Convert<builtin_interfaces::msg::Time>(_msg->time());
 
   for (const auto& pair : pairs)
   {
-    collision_msgs::msg::NamedCollision collision;
+    collision_log_msgs::msg::NamedCollision collision;
     collision.entity0 = pair.first;
     collision.entity1 = pair.second;
     collisions.collisions.push_back(collision);

@@ -17,9 +17,10 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(builtin_interfaces REQUIRED)
-find_package(collision_msgs REQUIRED)
+find_package(collision_log_msgs REQUIRED)
 find_package(gazebo_dev REQUIRED)
 find_package(gazebo_ros REQUIRED)
+find_package(gazebo_msgs REQUIRED)
 
 link_directories(${gazebo_dev_LIBRARY_DIRS})
 
@@ -31,8 +32,9 @@ target_include_directories(gazebo_collision_plugin PUBLIC
 ament_target_dependencies(gazebo_collision_plugin
   gazebo_dev
   builtin_interfaces
+  gazebo_msgs
   gazebo_ros
-  collision_msgs
+  collision_log_msgs
 )
 
 ament_export_libraries(gazebo_collision_plugin)
