@@ -39,7 +39,7 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
     sdf = sdf->GetElement("ros");
   }
   odometry_frame_ = sdf->Get<std::string>("odometry_frame", "odom").first;
-  robot_base_frame_ = sdf->Get<std::string>("robot_base_frame", "base_footprint").first;
+  robot_base_frame_ = sdf->Get<std::string>("robot_base_frame", "base_link").first;
   auto update_rate = sdf->Get<double>("update_rate", 20.0).first;
   auto publish_rate = sdf->Get<double>("publish_rate", 20.0).first;
   publish_odom_ = sdf->Get<bool>("publish_odom", true).first;
