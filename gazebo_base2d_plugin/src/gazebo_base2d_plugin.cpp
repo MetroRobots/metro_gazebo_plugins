@@ -39,7 +39,7 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
     sdf = sdf->GetElement("ros");
   }
   odometry_frame_ = sdf->Get<std::string>("odometry_frame", "odom").first;
-  robot_base_frame_ = sdf->Get<std::string>("robot_base_frame", "base_link").first;
+  robot_base_frame_ = sdf->Get<std::string>("robot_base_frame", "base_footprint").first;
   auto update_rate = sdf->Get<double>("update_rate", 20.0).first;
   auto publish_rate = sdf->Get<double>("publish_rate", 20.0).first;
   publish_odom_ = sdf->Get<bool>("publish_odom", true).first;
@@ -114,11 +114,11 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
   true_odom_.child_frame_id = robot_base_frame_;
 
   std::vector<double> odom_params;
-  for (const std::string& dimension : {"x", "y", "theta"})
+  for (const auto& dimension : {"x", "y", "theta"})
   {
-    for (const std::string& type : {"mean", "covariance"})
+    for (const auto& type : {"mean", "covariance"})
     {
-      std::string name = "odom_" + type + "_" + dimension;
+      std::string name = std::string("odom_") + type + "_" + dimension;
       odom_params.push_back(sdf->Get<double>(name, 0.0).first);
     }
   }
