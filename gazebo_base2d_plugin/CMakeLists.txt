@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(gazebo_collision_plugin)
+project(gazebo_base2d_plugin)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -16,29 +16,36 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
-find_package(builtin_interfaces REQUIRED)
-find_package(collision_msgs REQUIRED)
+find_package(base2d_kinematics REQUIRED)
 find_package(gazebo_dev REQUIRED)
 find_package(gazebo_ros REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_2d_utils REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 link_directories(${gazebo_dev_LIBRARY_DIRS})
 
-add_library(gazebo_collision SHARED src/gazebo_collision_plugin.cpp)
-target_include_directories(gazebo_collision PUBLIC
+add_library(gazebo_base2d_plugin SHARED src/gazebo_base2d_plugin.cpp)
+target_include_directories(gazebo_base2d_plugin PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
-ament_target_dependencies(gazebo_collision
+ament_target_dependencies(gazebo_base2d_plugin
+  base2d_kinematics
   gazebo_dev
-  builtin_interfaces
   gazebo_ros
-  collision_msgs
+  geometry_msgs
+  nav_msgs
+  nav_2d_utils
+  tf2_ros
+  rclcpp
 )
 
-ament_export_libraries(gazebo_collision)
-ament_export_targets(export_gazebo_collision)
-install(TARGETS gazebo_collision
-        EXPORT export_gazebo_collision
+ament_export_libraries(gazebo_base2d_plugin)
+ament_export_targets(export_gazebo_base2d_plugin)
+install(TARGETS gazebo_base2d_plugin
+        EXPORT export_gazebo_base2d_plugin
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib
         RUNTIME DESTINATION bin
