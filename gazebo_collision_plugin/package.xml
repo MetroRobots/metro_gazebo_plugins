@@ -11,6 +11,7 @@
   <depend>builtin_interfaces</depend>
   <depend>collision_log_msgs</depend>
   <depend>gazebo_ros</depend>
+  <depend>gazebo_msgs</depend>
 
   <export>
     <build_type>ament_cmake</build_type>

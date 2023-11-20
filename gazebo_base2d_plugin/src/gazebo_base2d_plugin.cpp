@@ -114,11 +114,11 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
   true_odom_.child_frame_id = robot_base_frame_;
 
   std::vector<double> odom_params;
-  for (const std::string& dimension : {"x", "y", "theta"})
+  for (const auto& dimension : {"x", "y", "theta"})
   {
-    for (const std::string& type : {"mean", "covariance"})
+    for (const auto& type : {"mean", "covariance"})
     {
-      std::string name = "odom_" + type + "_" + dimension;
+      std::string name = std::string("odom_") + type + "_" + dimension;
       odom_params.push_back(sdf->Get<double>(name, 0.0).first);
     }
   }
