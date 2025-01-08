@@ -12,16 +12,16 @@ repos:
   - id: check-symlinks
   - id: check-case-conflict
   - id: check-xml
-  rev: v4.4.0
+  rev: v5.0.0
 - repo: https://github.com/codespell-project/codespell
   hooks:
   - id: codespell
     args:
     - --write-changes
-  rev: v2.2.5
+  rev: v2.3.0
 - repo: https://github.com/pre-commit/mirrors-clang-format
   hooks:
   - id: clang-format
-  rev: v16.0.6
+  rev: v19.1.6
 ci:
   autoupdate_schedule: quarterly
