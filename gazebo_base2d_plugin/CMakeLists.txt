@@ -17,24 +17,25 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(base2d_kinematics REQUIRED)
-find_package(gazebo_dev REQUIRED)
-find_package(gazebo_ros REQUIRED)
+find_package(gz-sim8 REQUIRED)
+find_package(gz-plugin2 REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_2d_utils REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
-
-link_directories(${gazebo_dev_LIBRARY_DIRS})
 
 add_library(gazebo_base2d_plugin SHARED src/gazebo_base2d_plugin.cpp)
 target_include_directories(gazebo_base2d_plugin PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
+
+target_link_libraries(gazebo_base2d_plugin
+  gz-sim8::gz-sim8
+  gz-plugin2::gz-plugin2
+)
 ament_target_dependencies(gazebo_base2d_plugin
   base2d_kinematics
-  gazebo_dev
-  gazebo_ros
   geometry_msgs
   nav_msgs
   nav_2d_utils

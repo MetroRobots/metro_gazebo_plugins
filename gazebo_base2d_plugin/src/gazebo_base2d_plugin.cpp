@@ -16,28 +16,38 @@
 /* Author: David V. Lu!! */
 
 #include <gazebo_base2d_plugin/gazebo_base2d_plugin.hpp>
-#include <gazebo/physics/Model.hh>
-#include <gazebo/physics/World.hh>
-#include <gazebo_ros/conversions/builtin_interfaces.hpp>
-#include <gazebo_ros/conversions/geometry_msgs.hpp>
 #include <nav_2d_utils/conversions.hpp>
 
 namespace gazebo_base2d_plugin
 {
-void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr sdf)
+
+void GazeboBase2DPlugin::Configure(const gz::sim::Entity& _entity, const std::shared_ptr<const sdf::Element>& sdf,
+                                   gz::sim::EntityComponentManager& _ecm, gz::sim::EventManager& /*_eventMgr*/)
 {
-  world_ = model->GetWorld();
-  model_ = model;
+  model_ = gz::sim::Model(_entity);
+
+  auto canonical_link = model_.CanonicalLink(_ecm);
+  if (canonical_link == gz::sim::kNullEntity)
+  {
+    RCLCPP_ERROR(ros_node_->get_logger(), "Failed to resolve canonical link");
+    return;
+  }
+  canonical_link_ = gz::sim::Link(canonical_link);
 
   // ROS Interface
-  ros_node_ = gazebo_ros::Node::Get(sdf);
-  const gazebo_ros::QoS& qos = ros_node_->get_qos();
+  if (!rclcpp::ok())
+  {
+    rclcpp::init(0, nullptr);
+  }
+  ros_node_ = rclcpp::Node::make_shared("base_2d_plugin");
+
+  executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+
+  executor_->add_node(ros_node_);
+
+  ros_thread_ = std::thread(&GazeboBase2DPlugin::ros_spin, this);
 
   // parameters from SDF
-  if (sdf->HasElement("ros"))
-  {
-    sdf = sdf->GetElement("ros");
-  }
   odometry_frame_ = sdf->Get<std::string>("odometry_frame", "odom").first;
   robot_base_frame_ = sdf->Get<std::string>("robot_base_frame", "base_footprint").first;
   auto update_rate = sdf->Get<double>("update_rate", 20.0).first;
@@ -55,7 +65,6 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
   {
     update_period_ = 0.0;
   }
-  last_update_time_ = world_->SimTime();
 
   // Update rate
   if (update_rate > 0.0)
@@ -66,7 +75,6 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
   {
     publish_period_ = 0.0;
   }
-  last_publish_time_ = world_->SimTime();
 
   kinematics_.initialize(ros_node_);
   kinematics_.startSubscriber(ros_node_);
@@ -74,15 +82,13 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
   // Advertise odometry topic
   if (publish_odom_)
   {
-    odometry_pub_ =
-        ros_node_->create_publisher<nav_msgs::msg::Odometry>("odom", qos.get_publisher_qos("odom", rclcpp::QoS(1)));
+    odometry_pub_ = ros_node_->create_publisher<nav_msgs::msg::Odometry>("odom", 1);
 
     RCLCPP_INFO(ros_node_->get_logger(), "Advertise odometry on [%s]", odometry_pub_->get_topic_name());
   }
   if (publish_true_odom_)
   {
-    true_odometry_pub_ = ros_node_->create_publisher<nav_msgs::msg::Odometry>(
-        "true_odom", qos.get_publisher_qos("true_odom", rclcpp::QoS(1)));
+    true_odometry_pub_ = ros_node_->create_publisher<nav_msgs::msg::Odometry>("true_odom", 1);
 
     RCLCPP_INFO(ros_node_->get_logger(), "Advertise true odometry on [%s]", true_odometry_pub_->get_topic_name());
   }
@@ -97,8 +103,7 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
   }
 
   cmd_vel_sub_ = ros_node_->create_subscription<geometry_msgs::msg::Twist>(
-      "cmd_vel", qos.get_subscription_qos("cmd_vel", rclcpp::QoS(1)),
-      std::bind(&GazeboBase2DPlugin::OnCmdVel, this, std::placeholders::_1));
+      "cmd_vel", 1, std::bind(&GazeboBase2DPlugin::OnCmdVel, this, std::placeholders::_1));
 
   RCLCPP_INFO(ros_node_->get_logger(), "Subscribed to [%s]", cmd_vel_sub_->get_topic_name());
 
@@ -127,38 +132,30 @@ void GazeboBase2DPlugin::Load(gazebo::physics::ModelPtr model, sdf::ElementPtr s
   odom_.twist.covariance = odom_.pose.covariance;
   odom_.header.frame_id = odometry_frame_;
   odom_.child_frame_id = robot_base_frame_;
-
-  // Listen to the update event (broadcast every simulation iteration)
-  update_connection_ = gazebo::event::Events::ConnectWorldUpdateBegin(
-      std::bind(&GazeboBase2DPlugin::OnUpdate, this, std::placeholders::_1));
 }
 
 void GazeboBase2DPlugin::OnCmdVel(const geometry_msgs::msg::Twist::SharedPtr _msg)
 {
-  std::lock_guard<std::mutex> scoped_lock(lock_);
   target_cmd_vel_ = *_msg;
 }
 
-/// Callback to be called at every simulation iteration.
-/// \param[in] _info Updated simulation info.
-void GazeboBase2DPlugin::OnUpdate(const gazebo::common::UpdateInfo& _info)
+void GazeboBase2DPlugin::PreUpdate(const gz::sim::UpdateInfo& _info, gz::sim::EntityComponentManager& _ecm)
 {
-  double seconds_since_last_update = (_info.simTime - last_update_time_).Double();
+  using namespace std::literals;
+  double seconds_since_last_update = (_info.simTime - last_update_time_) / 1.0s;
 
-  std::lock_guard<std::mutex> scoped_lock(lock_);
-
-  ignition::math::Pose3d pose = model_->WorldPose();
+  const gz::math::Pose3d pose = worldPose(model_.Entity(), _ecm);
   auto yaw = static_cast<float>(pose.Rot().Yaw());
-  auto linear = model_->WorldLinearVel();
 
   // Get Current velocity in proper frame
   nav_2d_msgs::msg::Twist2D current_vel;
   if (use_actual_velocity_)
   {
     // This method does not work currently.
-    current_vel.x = cosf(yaw) * linear.X() + sinf(yaw) * linear.Y();
-    current_vel.y = cosf(yaw) * linear.Y() - sinf(yaw) * linear.X();
-    current_vel.theta = model_->WorldAngularVel().Z();
+    // auto linear = model_->WorldLinearVel();
+    // current_vel.x = cosf(yaw) * linear.X() + sinf(yaw) * linear.Y();
+    // current_vel.y = cosf(yaw) * linear.Y() - sinf(yaw) * linear.X();
+    // current_vel.theta = model_->WorldAngularVel().Z();
   }
   else
   {
@@ -167,38 +164,49 @@ void GazeboBase2DPlugin::OnUpdate(const gazebo::common::UpdateInfo& _info)
 
   // Calculate reachable cmd_vel
   nav_2d_msgs::msg::Twist2D target_vel = nav_2d_utils::twist3Dto2D(target_cmd_vel_);
-  nav_2d_msgs::msg::Twist2D cmd_vel =
-      kinematics_.calculateNewVelocity(target_vel, current_vel, seconds_since_last_update);
-  nav_2d_msgs::msg::Twist2D actual_cmd_vel = cmd_noise_model_->applyNoise(cmd_vel);
-  nav_2d_msgs::msg::Twist2D odom_cmd_vel = odom_noise_model_->applyNoise(cmd_vel);
+  cmd_vel_ = kinematics_.calculateNewVelocity(target_vel, current_vel, seconds_since_last_update);
+  actual_cmd_vel_ = cmd_noise_model_->applyNoise(cmd_vel_);
+  odom_cmd_vel_ = odom_noise_model_->applyNoise(cmd_vel_);
 
   if (seconds_since_last_update >= update_period_)
   {
-    // Convert to global twist
-    model_->SetLinearVel(ignition::math::Vector3d(actual_cmd_vel.x * cosf(yaw) - actual_cmd_vel.y * sinf(yaw),
-                                                  actual_cmd_vel.y * cosf(yaw) + actual_cmd_vel.x * sinf(yaw), 0));
-    model_->SetAngularVel(ignition::math::Vector3d(0, 0, actual_cmd_vel.theta));
-    last_cmd_ = actual_cmd_vel;
+    geometry_msgs::msg::Pose2D start_pose;
+    start_pose.x = pose.Pos().X();
+    start_pose.y = pose.Pos().Y();
+    start_pose.theta = yaw;
+
+    geometry_msgs::msg::Pose2D new_pose =
+        kinematics_.calculateNewPosition(start_pose, actual_cmd_vel_, seconds_since_last_update);
+
+    model_.SetWorldPoseCmd(_ecm, gz::math::Pose3d(new_pose.x, new_pose.y, pose.Pos().Z(), 0.0, 0.0, new_pose.theta));
+
+    current_pose_ = kinematics_.calculateNewPosition(current_pose_, odom_cmd_vel_, seconds_since_last_update);
+    last_cmd_ = actual_cmd_vel_;
 
     last_update_time_ = _info.simTime;
   }
+}
+
+void GazeboBase2DPlugin::PostUpdate(const gz::sim::UpdateInfo& _info, const gz::sim::EntityComponentManager& _ecm)
+{
+  using namespace std::literals;
+
+  const gz::math::Pose3d pose = worldPose(model_.Entity(), _ecm);
 
   if (publish_odom_ || publish_odom_tf_ || publish_true_odom_)
   {
-    double seconds_since_last_publish = (_info.simTime - last_publish_time_).Double();
+    double seconds_since_last_publish = (_info.simTime - last_publish_time_) / 1.0s;
 
     if (seconds_since_last_publish < publish_period_)
     {
       return;
     }
 
-    current_pose_ = kinematics_.calculateNewPosition(current_pose_, odom_cmd_vel, seconds_since_last_update);
-
     odom_.pose.pose = nav_2d_utils::pose2DToPose(current_pose_);
-    odom_.twist.twist = nav_2d_utils::twist2Dto3D(odom_noise_model_->applyNoise(cmd_vel));
+    odom_.twist.twist = nav_2d_utils::twist2Dto3D(odom_cmd_vel_);
 
     // Set timestamp
-    odom_.header.stamp = gazebo_ros::Convert<builtin_interfaces::msg::Time>(_info.simTime);
+    odom_.header.stamp = rclcpp::Time(_info.simTime / 1ns);
 
     if (publish_odom_)
     {
@@ -209,14 +217,32 @@ void GazeboBase2DPlugin::OnUpdate(const gazebo::common::UpdateInfo& _info)
       geometry_msgs::msg::TransformStamped msg;
       msg.header = odom_.header;
       msg.child_frame_id = robot_base_frame_;
-      msg.transform = gazebo_ros::Convert<geometry_msgs::msg::Transform>(odom_.pose.pose);
+
+      msg.transform.translation.x = odom_.pose.pose.position.x;
+      msg.transform.translation.y = odom_.pose.pose.position.y;
+      msg.transform.translation.z = odom_.pose.pose.position.z;
+
+      msg.transform.rotation.x = odom_.pose.pose.orientation.x;
+      msg.transform.rotation.y = odom_.pose.pose.orientation.y;
+      msg.transform.rotation.z = odom_.pose.pose.orientation.z;
+      msg.transform.rotation.w = odom_.pose.pose.orientation.w;
 
       transform_broadcaster_->sendTransform(msg);
     }
     if (publish_true_odom_)
     {
-      true_odom_.pose.pose = gazebo_ros::Convert<geometry_msgs::msg::Pose>(pose);
-      true_odom_.twist.twist = nav_2d_utils::twist2Dto3D(actual_cmd_vel);
+      auto gpos = pose.Pos();
+      true_odom_.pose.pose.position.x = gpos.X();
+      true_odom_.pose.pose.position.y = gpos.Y();
+      true_odom_.pose.pose.position.z = gpos.Z();
+
+      auto grot = pose.Rot();
+      true_odom_.pose.pose.orientation.x = grot.X();
+      true_odom_.pose.pose.orientation.y = grot.Y();
+      true_odom_.pose.pose.orientation.z = grot.Z();
+      true_odom_.pose.pose.orientation.w = grot.W();
+
+      true_odom_.twist.twist = nav_2d_utils::twist2Dto3D(actual_cmd_vel_);
       true_odom_.header.stamp = odom_.header.stamp;
       true_odometry_pub_->publish(true_odom_);
     }
@@ -224,6 +250,10 @@ void GazeboBase2DPlugin::OnUpdate(const gazebo::common::UpdateInfo& _info)
     last_publish_time_ = _info.simTime;
   }
 }
-
-GZ_REGISTER_MODEL_PLUGIN(GazeboBase2DPlugin)
 }  // namespace gazebo_base2d_plugin
+
+// Register plugin
+GZ_ADD_PLUGIN(gazebo_base2d_plugin::GazeboBase2DPlugin, gz::sim::System,
+              gazebo_base2d_plugin::GazeboBase2DPlugin::ISystemConfigure,
+              gazebo_base2d_plugin::GazeboBase2DPlugin::ISystemPreUpdate,
+              gazebo_base2d_plugin::GazeboBase2DPlugin::ISystemPostUpdate)

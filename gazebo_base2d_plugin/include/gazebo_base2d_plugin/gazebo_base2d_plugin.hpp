@@ -17,34 +17,49 @@
 
 #pragma once
 
-#include <gazebo/common/Plugin.hh>
-#include <gazebo_ros/node.hpp>
+#include <gz/sim/Model.hh>
+#include <gz/sim/Link.hh>
+#include <gz/sim/Util.hh>
+#include <gz/sim/System.hh>
+#include <gz/plugin/Register.hh>
+
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <tf2_ros/transform_broadcaster.h>
 #include <base2d_kinematics/kinematic_parameters.hpp>
 #include <base2d_kinematics/noise_model.hpp>
-
-// Based on https://github.com/ros-simulation/gazebo_ros_pkgs/blob/b6f7bf121d0c607825b65a28b227a5459a71821b/gazebo_plugins/include/gazebo_plugins/gazebo_ros_planar_move.hpp
+#include <thread>
 
 namespace gazebo_base2d_plugin
 {
-class GazeboBase2DPlugin : public gazebo::ModelPlugin
+typedef std::chrono::steady_clock::duration SimClock;
+
+class GazeboBase2DPlugin : public gz::sim::System,
+                           public gz::sim::ISystemConfigure,
+                           public gz::sim::ISystemPreUpdate,
+                           public gz::sim::ISystemPostUpdate
 {
 public:
-  void Load(gazebo::physics::ModelPtr model, sdf::ElementPtr sdf) override;
+  virtual void Configure(const gz::sim::Entity& _entity, const std::shared_ptr<const sdf::Element>& _sdf,
+                         gz::sim::EntityComponentManager& _ecm, gz::sim::EventManager& /*_eventMgr*/) override;
 
   /// Callback when a velocity command is received.
   /// \param[in] _msg Twist command message.
   void OnCmdVel(const geometry_msgs::msg::Twist::SharedPtr _msg);
 
-  /// Callback to be called at every simulation iteration.
-  /// \param[in] _info Updated simulation info.
-  void OnUpdate(const gazebo::common::UpdateInfo& _info);
+  void PreUpdate(const gz::sim::UpdateInfo& _info, gz::sim::EntityComponentManager& _ecm) override;
+  void PostUpdate(const gz::sim::UpdateInfo& /*_info*/, const gz::sim::EntityComponentManager& _ecm) override;
 
 protected:
-  gazebo_ros::Node::SharedPtr ros_node_;
+  void ros_spin()
+  {
+    executor_->spin();
+  }
+
+  rclcpp::Node::SharedPtr ros_node_;
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
+  rclcpp::executors::SingleThreadedExecutor::SharedPtr executor_;
+  std::thread ros_thread_;
 
   /// Odometry publishers
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr true_odometry_pub_, odometry_pub_;
@@ -58,17 +73,11 @@ protected:
   /// Keep latest odometry message
   nav_msgs::msg::Odometry odom_, true_odom_;
 
-  /// Pointer to world.
-  gazebo::physics::WorldPtr world_;
-
   /// Pointer to model.
-  gazebo::physics::ModelPtr model_;
+  gz::sim::Model model_;
 
-  /// Connection to event called at every world iteration.
-  gazebo::event::ConnectionPtr update_connection_;
-
-  /// Protect variables accessed on callbacks.
-  std::mutex lock_;
+  // Pointer to canonical link
+  gz::sim::Link canonical_link_;
 
   /// Update period in seconds.
   double update_period_;
@@ -77,10 +86,10 @@ protected:
   double publish_period_;
 
   /// Last update time.
-  gazebo::common::Time last_update_time_;
+  SimClock last_update_time_{};
 
   /// Last publish time.
-  gazebo::common::Time last_publish_time_;
+  SimClock last_publish_time_{};
 
   /// Odometry frame ID
   std::string odometry_frame_;
@@ -98,6 +107,10 @@ protected:
   std::unique_ptr<base2d_kinematics::NoiseModel> cmd_noise_model_, odom_noise_model_;
   geometry_msgs::msg::Pose2D current_pose_;
   nav_2d_msgs::msg::Twist2D last_cmd_;
+
+  nav_2d_msgs::msg::Twist2D cmd_vel_;
+  nav_2d_msgs::msg::Twist2D actual_cmd_vel_;  // with command noise
+  nav_2d_msgs::msg::Twist2D odom_cmd_vel_;    // with odom noise
 
   bool use_actual_velocity_{false};
 };
